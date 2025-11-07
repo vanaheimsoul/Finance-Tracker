@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Annual Finance Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .chart-container { position: relative; width: 100%; max-width: 500px; margin: 0 auto; height: 300px; max-height: 400px; }
+    @media (min-width: 768px) { .chart-container { height: 350px; } }
+
+    /* --- Modal System --- */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background-color: rgba(0, 0, 0, 0.6);
+      display: none; /* start hidden */
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      padding: 1rem;
+    }
+    .modal-backdrop.active {
+      display: flex; /* show modal */
+    }
+    .modal-content {
+      background-color: white;
+      border-radius: 0.75rem;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+
+<body class="bg-slate-50 text-slate-800">
+  <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+    <header class="text-center mb-6">
+      <h1 class="text-3xl md:text-4xl font-bold text-slate-1000">My Personal Finance Tracker</h1>
+      <p class="text-slate-600 mt-2">Track your finances month-by-month and see your yearly progress.</p>
+    </header>
+
+    <!-- Controls -->
+    <section class="mb-6 bg-white p-4 rounded-xl shadow-md border border-slate-200 flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <label for="month-selector" class="text-sm font-medium text-slate-700">View Month:</label>
+        <select id="month-selector" class="ml-2 p-2 border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500"></select>
+      </div>
+      <div class="flex gap-2">
+        <button id="viewYearlyBtn" class="bg-sky-600 text-white py-2 px-4 rounded-md hover:bg-sky-700 font-semibold transition-colors">View Year Summary</button>
+        <button id="archiveMonthBtn" class="bg-amber-500 text-white py-2 px-4 rounded-md hover:bg-amber-600 font-semibold transition-colors">End & Archive Month</button>
+      </div>
+    </section>
+
+    <main>
+      <!-- Summary -->
+      <section id="summary" class="mb-8">
+        <h2 id="summary-title" class="text-2xl font-semibold text-slate-900 mb-4">Financial Overview</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
+            <h3 class="text-lg font-semibold text-green-600">Total Income</h3>
+            <p id="totalIncome" class="text-3xl font-bold mt-2">₦0.00</p>
+          </div>
+          <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
+            <h3 class="text-lg font-semibold text-red-600">Total Expenses</h3>
+            <p id="totalExpenses" class="text-3xl font-bold mt-2">₦0.00</p>
+          </div>
+          <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
+            <h3 class="text-lg font-semibold text-sky-600">Net Balance</h3>
+            <p id="netBalance" class="text-3xl font-bold mt-2">₦0.00</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Charts -->
+      <section id="visuals" class="mb-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
+            <h3 class="text-xl font-semibold text-center mb-4">Expense Categories</h3>
+            <div class="chart-container"><canvas id="expenseChart"></canvas></div>
+          </div>
+          <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
+            <h3 class="text-xl font-semibold text-center mb-4">Income vs. Expenses</h3>
+            <div class="chart-container"><canvas id="incomeVsExpenseChart"></canvas></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Transaction Manager -->
+      <section id="transactions">
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+          <!-- Form -->
+          <div id="form-container" class="lg:col-span-2 bg-white p-6 rounded-xl shadow-md border border-slate-200 h-fit">
+            <h3 id="formTitle" class="text-xl font-semibold mb-4">Add New Transaction</h3>
+            <form id="transactionForm" class="space-y-4">
+              <input type="hidden" id="transactionId">
+              <div>
+                <label for="type" class="block text-sm font-medium text-slate-700">Type</label>
+                <select id="type" class="mt-1 block w-full p-2 border border-slate-300 rounded-md shadow-sm">
+                  <option value="Income">Income</option>
+                  <option value="Expense" selected>Expense</option>
+                </select>
+              </div>
+              <div>
+                <label for="category" class="block text-sm font-medium text-slate-700">Category</label>
+                <input id="category" list="categories" class="mt-1 block w-full p-2 border border-slate-300 rounded-md shadow-sm" placeholder="e.g., Food">
+                <datalist id="categories">
+                  <option>Transport</option><option>Utilities</option><option>Subscriptions</option>
+                  <option>Miscellaneous</option><option>Giving</option><option>Savings</option>
+                  <option>Food</option><option>Debt Repayment</option><option>Salary</option>
+                </datalist>
+              </div>
+              <div>
+                <label for="description" class="block text-sm font-medium text-slate-700">Description</label>
+                <input type="text" id="description" class="mt-1 block w-full p-2 border border-slate-300 rounded-md shadow-sm" placeholder="e.g., Weekly groceries">
+              </div>
+              <div>
+                <label for="amount" class="block text-sm font-medium text-slate-700">Amount (₦)</label>
+                <input type="number" id="amount" required class="mt-1 block w-full p-2 border border-slate-300 rounded-md shadow-sm" placeholder="e.g., 5000">
+              </div>
+              <div>
+                <label for="date" class="block text-sm font-medium text-slate-700">Date</label>
+                <input type="date" id="date" required class="mt-1 block w-full p-2 border border-slate-300 rounded-md shadow-sm">
+              </div>
+              <div class="flex items-center gap-2">
+                <button type="submit" id="submitBtn" class="flex-grow bg-sky-600 text-white py-2 px-4 rounded-md hover:bg-sky-700">Add Transaction</button>
+                <button type="button" id="cancelBtn" class="hidden flex-grow bg-slate-500 text-white py-2 px-4 rounded-md hover:bg-slate-600">Cancel</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Table -->
+          <div class="lg:col-span-3 bg-white p-6 rounded-xl shadow-md border border-slate-200">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-xl font-semibold">Transaction History</h3>
+              <button id="clearCurrentBtn" class="bg-red-500 text-white text-sm py-2 px-4 rounded-md hover:bg-red-600">Clear Current Month</button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-slate-200">
+                <thead class="bg-slate-50">
+                  <tr>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Date</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Category</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Description</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Amount</th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="transactionList" class="bg-white divide-y divide-slate-200"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Confirmation Modal -->
+  <div id="confirmationModal" class="modal-backdrop">
+    <div class="modal-content max-w-md p-6 text-center">
+      <h3 id="modalTitle" class="text-lg font-bold text-slate-900">Are you sure?</h3>
+      <p id="modalText" class="text-slate-600 my-4"></p>
+      <div class="flex justify-center gap-4">
+        <button id="confirmBtn" class="bg-red-600 text-white py-2 px-6 rounded-md hover:bg-red-700">Confirm</button>
+        <button id="cancelBtnModal" class="bg-slate-300 text-slate-800 py-2 px-6 rounded-md hover:bg-slate-400">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Yearly Modal -->
+  <div id="yearlyModal" class="modal-backdrop">
+    <div class="modal-content max-w-4xl p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-2xl font-bold text-slate-900">Yearly Summary</h2>
+        <button type="button" id="closeYearlyBtn" class="text-slate-500 hover:text-slate-800 text-2xl">&times;</button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-slate-100 p-4 rounded-lg">
+          <h3 class="text-lg font-semibold text-center mb-2">Monthly Net Income</h3>
+          <canvas id="yearlyNetChart"></canvas>
+        </div>
+        <div class="bg-slate-100 p-4 rounded-lg">
+          <h3 class="text-lg font-semibold text-center mb-2">Annual Income vs Expense</h3>
+          <canvas id="yearlyTrendChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const STORAGE_KEY = 'annualFinanceTrackerData';
+    let appData = { current: [], archive: {} };
+    let expenseChart, incomeVsExpenseChart, yearlyNetChart, yearlyTrendChart;
+    let currentAction = null;
+
+    const elements = {
+      monthSelector: document.getElementById('month-selector'),
+      summaryTitle: document.getElementById('summary-title'),
+      totalIncome: document.getElementById('totalIncome'),
+      totalExpenses: document.getElementById('totalExpenses'),
+      netBalance: document.getElementById('netBalance'),
+      transactionForm: document.getElementById('transactionForm'),
+      transactionIdInput: document.getElementById('transactionId'),
+      transactionList: document.getElementById('transactionList'),
+      descriptionInput: document.getElementById('description'),
+      formContainer: document.getElementById('form-container'),
+      formTitle: document.getElementById('formTitle'),
+      submitBtn: document.getElementById('submitBtn'),
+      cancelBtn: document.getElementById('cancelBtn'),
+      dateInput: document.getElementById('date'),
+      archiveMonthBtn: document.getElementById('archiveMonthBtn'),
+      clearCurrentBtn: document.getElementById('clearCurrentBtn'),
+      viewYearlyBtn: document.getElementById('viewYearlyBtn'),
+      confirmationModal: document.getElementById('confirmationModal'),
+      modalTitle: document.getElementById('modalTitle'),
+      modalText: document.getElementById('modalText'),
+      confirmBtn: document.getElementById('confirmBtn'),
+      cancelBtnModal: document.getElementById('cancelBtnModal'),
+      yearlyModal: document.getElementById('yearlyModal'),
+      closeYearlyBtn: document.getElementById('closeYearlyBtn'),
+    };
+
+    const formatCurrency = (amt) => `₦${amt.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+    const saveData = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+    const loadData = () => {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) appData = JSON.parse(stored);
+      else appData.current = [
+        {id:1,date:new Date().toISOString().slice(0,10),type:'Income',category:'Salary',description:'Monthly Pay',amount:150000},
+        {id:2,date:new Date().toISOString().slice(0,10),type:'Expense',category:'Transport',description:'Bus fare',amount:36500},
+      ];
+    };
+
+    const showModal = (el) => el.classList.add('active');
+    const hideModal = (el) => el.classList.remove('active');
+
+    elements.cancelBtnModal.addEventListener('click', ()=> hideModal(elements.confirmationModal));
+    elements.closeYearlyBtn.addEventListener('click', ()=> hideModal(elements.yearlyModal));
+    elements.yearlyModal.addEventListener('click', (e)=>{ if(e.target===elements.yearlyModal) hideModal(elements.yearlyModal); });
+    elements.confirmationModal.addEventListener('click', (e)=>{ if(e.target===elements.confirmationModal) hideModal(elements.confirmationModal); });
+
+    elements.viewYearlyBtn.addEventListener('click', () => {
+      renderYearlySummary();
+      showModal(elements.yearlyModal);
+    });
+
+    const showConfirmation = (title, text, action) => {
+      elements.modalTitle.textContent = title;
+      elements.modalText.textContent = text;
+      currentAction = action;
+      showModal(elements.confirmationModal);
+    };
+
+    elements.confirmBtn.addEventListener('click', () => {
+      if (currentAction === 'clear') appData.current = [];
+      if (currentAction === 'archive') {
+        const key = new Date().toISOString().slice(0,7);
+        if (!appData.archive[key]) {
+             appData.archive[key] = [];
+        }
+        appData.archive[key].push(...appData.current);
+        appData.current = [];
+      }
+      saveData();
+      populateMonthSelector();
+      renderForSelection();
+      hideModal(elements.confirmationModal);
+    });
+
+    elements.clearCurrentBtn.addEventListener('click', ()=> showConfirmation('Clear Current Month?','This will delete all current transactions.','clear'));
+    elements.archiveMonthBtn.addEventListener('click', ()=> showConfirmation('End & Archive Month?','This will save this month to archive and start fresh.','archive'));
+
+    const renderYearlySummary = () => {
+      const all = [...appData.current, ...Object.values(appData.archive).flat()];
+      const months = Array.from({length:12},(_,i)=>({label:new Date(0,i).toLocaleString('default',{month:'short'}),income:0,expense:0}));
+      all.forEach(t=>{
+        if(!t.date) return;
+        const m = parseInt(t.date.slice(5,7))-1;
+        if(t.type==='Income') months[m].income+=t.amount;
+        else months[m].expense+=t.amount;
+      });
+      const labels = months.map(m=>m.label);
+      const net = months.map(m=>m.income-m.expense);
+      const income = months.map(m=>m.income);
+      const expense = months.map(m=>m.expense);
+      if(yearlyNetChart) yearlyNetChart.destroy();
+      yearlyNetChart = new Chart(document.getElementById('yearlyNetChart'),{
+        type:'bar', data:{labels, datasets:[{label:'Net Income',data:net, backgroundColor:net.map(v=>v>=0?'rgba(56,189,248,0.6)':'rgba(248,113,113,0.6)')}]},
+        options:{responsive:true, scales:{y:{beginAtZero:true}}}
+      });
+      if(yearlyTrendChart) yearlyTrendChart.destroy();
+      yearlyTrendChart = new Chart(document.getElementById('yearlyTrendChart'),{
+        type:'line', data:{labels,datasets:[
+          {label:'Income',data:income,borderColor:'rgba(34,197,94,1)',backgroundColor:'rgba(34,197,94,0.1)',fill:true,tension:0.3},
+          {label:'Expense',data:expense,borderColor:'rgba(239,68,68,1)',backgroundColor:'rgba(239,68,68,0.1)',fill:true,tension:0.3}
+        ]}, options:{responsive:true,scales:{y:{beginAtZero:true}}}
+      });
+    };
+    
+    const resetForm = () => {
+        elements.transactionForm.reset();
+        elements.transactionIdInput.value = '';
+        elements.dateInput.valueAsDate = new Date();
+        elements.formTitle.textContent = 'Add New Transaction';
+        elements.submitBtn.textContent = 'Add Transaction';
+        elements.cancelBtn.classList.add('hidden');
+    };
+
+    const renderTransactions = (transactions, isCurrent) => {
+        elements.transactionList.innerHTML = '';
+        if (!transactions || transactions.length === 0) {
+            elements.transactionList.innerHTML = `<tr><td colspan="5" class="text-center text-slate-500 py-8">No transactions for this period.</td></tr>`;
+            return;
+        }
+        const sorted = [...transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+        sorted.forEach(t => {
+            const row = document.createElement('tr');
+            const amountClass = t.type === 'Income' ? 'text-green-600' : 'text-red-600';
+            const actionsHtml = isCurrent ? `
+                <button class="edit-btn text-sky-600 hover:text-sky-800" data-id="${t.id}">Edit</button>
+                <span class="text-slate-300 mx-1">|</span>
+                <button class="delete-btn text-red-600 hover:text-red-800" data-id="${t.id}">Delete</button>
+            ` : 'Archived';
+            row.innerHTML = `<td class="px-4 py-4 text-sm text-slate-500">${t.date}</td><td class="px-4 py-4 text-sm font-medium text-slate-800">${t.category}</td><td class="px-4 py-4 text-sm text-slate-600">${t.description || ''}</td><td class="px-4 py-4 text-sm font-semibold text-right ${amountClass}">${formatCurrency(t.amount)}</td><td class="px-4 py-4 text-center text-sm font-medium">${actionsHtml}</td>`;
+            elements.transactionList.appendChild(row);
+        });
+    };
+
+    const updateMonthlyCharts = (transactions) => {
+        const expensesByCategory = transactions.filter(t => t.type === 'Expense').reduce((acc, t) => { acc[t.category] = (acc[t.category] || 0) + t.amount; return acc; }, {});
+        if (expenseChart) expenseChart.destroy();
+        expenseChart = new Chart(document.getElementById('expenseChart').getContext('2d'), { type: 'doughnut', data: { labels: Object.keys(expensesByCategory), datasets: [{ data: Object.values(expensesByCategory), backgroundColor: ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e', '#14b8a6'], borderColor: '#ffffff', borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } } });
+
+        const totalIncome = transactions.filter(t => t.type === 'Income').reduce((s, t) => s + t.amount, 0);
+        const totalExpenses = transactions.filter(t => t.type === 'Expense').reduce((s, t) => s + t.amount, 0);
+        if (incomeVsExpenseChart) incomeVsExpenseChart.destroy();
+        incomeVsExpenseChart = new Chart(document.getElementById('incomeVsExpenseChart').getContext('2d'), { type: 'bar', data: { labels: ['Financial Flow'], datasets: [{ label: 'Income', data: [totalIncome], backgroundColor: 'rgba(34, 197, 94, 0.6)' }, { label: 'Expenses', data: [totalExpenses], backgroundColor: 'rgba(239, 68, 68, 0.6)' }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } } });
+    };
+
+    const renderForSelection = () => {
+        const selection = elements.monthSelector.value;
+        const isCurrent = selection === 'current';
+        const transactions = isCurrent ? appData.current : appData.archive[selection];
+        
+        elements.formContainer.style.display = isCurrent ? 'block' : 'none';
+        elements.archiveMonthBtn.style.display = isCurrent ? 'block' : 'none';
+        elements.clearCurrentBtn.style.display = isCurrent ? 'block' : 'none';
+        
+        if(isCurrent) {
+            elements.summaryTitle.textContent = `Financial Overview (Current Month)`;
+        } else {
+             const [year, month] = selection.split('-');
+             const date = new Date(year, month - 1);
+             elements.summaryTitle.textContent = `Financial Overview (${date.toLocaleString('default', { month: 'long', year: 'numeric' })})`;
+        }
+
+        const totalIncome = (transactions || []).filter(t=>t.type==='Income').reduce((s,t)=>s+t.amount,0);
+        const totalExpenses = (transactions || []).filter(t=>t.type==='Expense').reduce((s,t)=>s+t.amount,0);
+        const netBalance = totalIncome - totalExpenses;
+        elements.totalIncome.textContent = formatCurrency(totalIncome);
+        elements.totalExpenses.textContent = formatCurrency(totalExpenses);
+        elements.netBalance.textContent = formatCurrency(netBalance);
+        elements.netBalance.classList.toggle('text-red-600', netBalance < 0);
+        elements.netBalance.classList.toggle('text-sky-600', netBalance >= 0);
+
+        renderTransactions(transactions, isCurrent);
+        updateMonthlyCharts(transactions || []);
+    };
+    
+    const populateMonthSelector = () => {
+        const selectedValue = elements.monthSelector.value;
+        const options = new Set(['current', ...Object.keys(appData.archive).sort().reverse()]);
+        elements.monthSelector.innerHTML = '';
+        options.forEach(key => {
+            const option = document.createElement('option');
+            option.value = key;
+            if (key === 'current') {
+                option.textContent = `Current Month (${new Date().toLocaleString('default', { month: 'long' })})`;
+            } else {
+                const [year, month] = key.split('-');
+                const date = new Date(year, month - 1);
+                option.textContent = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+            }
+            elements.monthSelector.add(option);
+        });
+        elements.monthSelector.value = selectedValue && elements.monthSelector.querySelector(`[value="${selectedValue}"]`) ? selectedValue : 'current';
+    };
+
+    elements.transactionForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const id = elements.transactionIdInput.value;
+        const transactionData = { 
+            date: elements.dateInput.value, 
+            type: elements.transactionForm.type.value, 
+            category: elements.transactionForm.category.value, 
+            description: elements.descriptionInput.value, 
+            amount: parseFloat(elements.transactionForm.amount.value) 
+        };
+        if (id) {
+            const index = appData.current.findIndex(t => t.id == id);
+            appData.current[index] = { ...appData.current[index], ...transactionData };
+        } else {
+            transactionData.id = Date.now();
+            appData.current.push(transactionData);
+        }
+        resetForm();
+        saveData();
+        renderForSelection();
+    });
+
+    elements.transactionList.addEventListener('click', (e) => {
+        const id = e.target.dataset.id;
+        if (!id) return;
+
+        if (e.target.classList.contains('delete-btn')) {
+            appData.current = appData.current.filter(t => t.id != id);
+            saveData();
+            renderForSelection();
+        } else if (e.target.classList.contains('edit-btn')) {
+            const transaction = appData.current.find(t => t.id == id);
+            elements.transactionIdInput.value = transaction.id;
+            elements.dateInput.value = transaction.date;
+            elements.transactionForm.type.value = transaction.type;
+            elements.transactionForm.category.value = transaction.category;
+            elements.descriptionInput.value = transaction.description || '';
+            elements.transactionForm.amount.value = transaction.amount;
+            elements.formTitle.textContent = 'Edit Transaction';
+            elements.submitBtn.textContent = 'Update Transaction';
+            elements.cancelBtn.classList.remove('hidden');
+            elements.formContainer.scrollIntoView({ behavior: 'smooth' });
+        }
+    });
+    
+    elements.cancelBtn.addEventListener('click', resetForm);
+    elements.monthSelector.addEventListener('change', renderForSelection);
+
+    const initializeApp = () => {
+        loadData();
+        populateMonthSelector();
+        elements.dateInput.valueAsDate = new Date();
+        renderForSelection();
+    };
+
+    initializeApp();
+  });
+  </script>
+</body>
+</html>
